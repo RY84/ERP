@@ -1,21 +1,22 @@
 plugins {
-    kotlin("jvm") version "2.2.10"
+    id("org.jetbrains.kotlin.jvm") version "1.9.24"
+    id("application")
 }
-
-group = "org.example"
-version = "1.0-SNAPSHOT"
 
 repositories {
     mavenCentral()
 }
 
 dependencies {
+    implementation(kotlin("stdlib"))
     testImplementation(kotlin("test"))
 }
 
-tasks.test {
-    useJUnitPlatform()
-}
 kotlin {
     jvmToolchain(17)
+}
+
+application {
+    // jeśli Twój plik to src/main/kotlin/erp/Main.kt -> erp.MainKt
+    mainClass.set("erp.MainKt")
 }

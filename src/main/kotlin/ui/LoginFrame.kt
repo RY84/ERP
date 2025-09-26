@@ -1,5 +1,6 @@
 package ui
 
+import db.UserDao
 import java.awt.*
 import javax.imageio.ImageIO
 import javax.swing.*
@@ -34,7 +35,7 @@ class LoginFrame : JFrame("Wszystko sam muszę robić...") {
         val column = JPanel().apply {
             layout = BoxLayout(this, BoxLayout.Y_AXIS)
             isOpaque = false
-            alignmentX = Component.CENTER_ALIGNMENT
+            alignmentX = CENTER_ALIGNMENT
             maximumSize = Dimension(520, 400)
         }
 
@@ -44,7 +45,7 @@ class LoginFrame : JFrame("Wszystko sam muszę robić...") {
             foreground = Color.WHITE
             isOpaque = true
             background = Color(0, 0, 0, 190)
-            alignmentX = Component.CENTER_ALIGNMENT
+            alignmentX = CENTER_ALIGNMENT
             border = BorderFactory.createEmptyBorder(10, 20, 10, 20)
             preferredSize = Dimension(500, 60)
             maximumSize = Dimension(500, 60)
@@ -65,7 +66,7 @@ class LoginFrame : JFrame("Wszystko sam muszę robić...") {
         val btnLogin = JButton("Zaloguj").apply {
             preferredSize = Dimension(500, 60)
             maximumSize = Dimension(500, 60)
-            alignmentX = Component.CENTER_ALIGNMENT
+            alignmentX = CENTER_ALIGNMENT
             isOpaque = true
             background = Color(0, 0, 0, 180)
             foreground = Color.WHITE
@@ -74,13 +75,50 @@ class LoginFrame : JFrame("Wszystko sam muszę robić...") {
 
             addActionListener {
                 val u = userField.text.trim()
-                val p = String(passField.password)
+                val pChars = passField.password
+                val p = String(pChars)
+
                 if (u.isEmpty() || p.isEmpty()) {
                     JOptionPane.showMessageDialog(this@LoginFrame, "Uzupełnij dane.")
                 } else {
-                    dispose()
-                    MainWindow().isVisible = true
+                    // 🔐 Autentykacja w bazie
+                    val user = try {
+                        UserDao.authenticate(u, p)
+                    } catch (ex: Exception) {
+                        JOptionPane.showMessageDialog(
+                            this@LoginFrame,
+                            "Błąd połączenia z bazą: ${ex.message}",
+                            "Błąd",
+                            JOptionPane.ERROR_MESSAGE
+                        )
+                        null
+                    }
+
+                    if (user != null) {
+                        JOptionPane.showMessageDialog(
+                            this@LoginFrame,
+                            "Zalogowano jako ${user.username} (rola: ${user.role})",
+                            "Sukces",
+                            JOptionPane.INFORMATION_MESSAGE
+                        )
+                        // ✅ Logowanie poprawne → otwórz główne okno
+                        dispose()
+                        // Jeśli Twój MainWindow nie ma konstruktora z parametrami, zostaw tak:
+                        MainWindow().isVisible = true
+                        // Jeśli zechcesz przekazać użytkownika/rolę, rozbudujemy MainWindow później.
+                    } else {
+                        JOptionPane.showMessageDialog(
+                            this@LoginFrame,
+                            "Błędny login lub hasło.",
+                            "Błąd logowania",
+                            JOptionPane.ERROR_MESSAGE
+                        )
+                    }
                 }
+
+                // wyczyść bufor hasła w pamięci
+                java.util.Arrays.fill(pChars, '\u0000')
+                passField.text = ""
             }
         }
         rootPane.defaultButton = btnLogin
@@ -121,6 +159,6 @@ class LoginFrame : JFrame("Wszystko sam muszę robić...") {
 
             preferredSize = Dimension(500, 60)
             maximumSize = Dimension(500, 60)
-            alignmentX = Component.CENTER_ALIGNMENT
+            alignmentX = CENTER_ALIGNMENT
         }
 }

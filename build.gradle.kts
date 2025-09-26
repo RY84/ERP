@@ -9,6 +9,10 @@ repositories {
 
 dependencies {
     implementation(kotlin("stdlib"))
+    // PostgreSQL JDBC driver
+    implementation("org.postgresql:postgresql:42.7.4")
+    // BCrypt do haszowania/ weryfikacji haseł
+    implementation("at.favre.lib:bcrypt:0.10.2")
     testImplementation(kotlin("test"))
 }
 

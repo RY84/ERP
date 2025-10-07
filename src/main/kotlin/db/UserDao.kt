@@ -1,151 +1,72 @@
 package db
 
-import at.favre.lib.crypto.bcrypt.BCrypt
 import java.sql.ResultSet
 
 data class User(
     val id: Long,
     val username: String,
-    val role: String
+    val role: String,
+    val createdAt: String
 )
 
 object UserDao {
 
     /**
-     * Tworzy schemat (tabela users) i – jeśli brak użytkowników – seeduje konto admin/admin.
-     * Wywołaj to raz na starcie aplikacji.
+     * Logowanie: sprawdza username + password_hash (tu: proste porównanie).
+     * Jeśli w bazie trzymasz prawdziwe hashe (np. bcrypt/scrypt),
+     * zamień warunek w SQL lub zweryfikuj w Javie (komentarz niżej).
      */
-    fun ensureSchemaAndSeed() {
-        Database.getConnection().use { conn ->
-            conn.createStatement().use { st ->
-                st.execute(
-                    """
-                    CREATE TABLE IF NOT EXISTS users(
-                        id SERIAL PRIMARY KEY,
-                        username TEXT NOT NULL UNIQUE,
-                        password_hash TEXT NOT NULL,
-                        role TEXT NOT NULL DEFAULT 'user',
-                        created_at TIMESTAMP NOT NULL DEFAULT NOW()
-                    );
-                    """.trimIndent()
-                )
-            }
+    fun authenticate(username: String, password: String): User? {
+        val sql = """
+            SELECT id, username, role, created_at
+            FROM users
+            WHERE username = ? AND password_hash = ?
+            LIMIT 1
+        """.trimIndent()
 
-            // jeśli brak rekordu 'admin' – dodaj
-            if (findByUsername("admin") == null) {
-                createUser("admin", "admin", "admin")
-            }
-        }
-    }
-
-    /**
-     * Próbuje zalogować użytkownika. Zwraca User przy sukcesie, null przy błędzie.
-     */
-    fun authenticate(username: String, rawPassword: String): User? {
-        val rec = findWithHash(username) ?: return null
-        val verified = BCrypt.verifyer().verify(
-            rawPassword.toCharArray(),
-            rec.passwordHash
-        ).verified
-        return if (verified) User(rec.id, rec.username, rec.role) else null
-    }
-
-    /**
-     * Tworzy użytkownika z hasłem (BCrypt).
-     */
-    fun createUser(username: String, rawPassword: String, role: String = "user"): User {
-        val cleanUser = username.trim()
-        require(cleanUser.isNotEmpty()) { "Username cannot be empty." }
-        require(rawPassword.isNotEmpty()) { "Password cannot be empty." }
-
-        val hash = BCrypt.withDefaults().hashToString(12, rawPassword.toCharArray())
-        Database.getConnection().use { conn ->
-            conn.prepareStatement(
-                """
-                INSERT INTO users(username, password_hash, role)
-                VALUES (?, ?, ?)
-                RETURNING id, username, role
-                """.trimIndent()
-            ).use { ps ->
-                ps.setString(1, cleanUser)
-                ps.setString(2, hash)
-                ps.setString(3, role)
-                ps.executeQuery().use { rs ->
-                    rs.next()
-                    return User(
-                        id = rs.getLong("id"),
-                        username = rs.getString("username"),
-                        role = rs.getString("role")
-                    )
-                }
-            }
-        }
-    }
-
-    /**
-     * Zmienia hasło użytkownika (nadpisuje BCryptem).
-     */
-    fun changePassword(username: String, newRawPassword: String) {
-        val hash = BCrypt.withDefaults().hashToString(12, newRawPassword.toCharArray())
-        Database.getConnection().use { conn ->
-            conn.prepareStatement(
-                "UPDATE users SET password_hash = ? WHERE username = ?"
-            ).use { ps ->
-                ps.setString(1, hash)
-                ps.setString(2, username)
-                ps.executeUpdate()
-            }
-        }
-    }
-
-    /**
-     * Szuka użytkownika (bez hasha).
-     */
-    fun findByUsername(username: String): User? {
-        Database.getConnection().use { conn ->
-            conn.prepareStatement(
-                "SELECT id, username, role FROM users WHERE username = ?"
-            ).use { ps ->
+        Database.getConnection().use { con ->
+            con.prepareStatement(sql).use { ps ->
                 ps.setString(1, username)
+                ps.setString(2, password) // <- jeśli trzymasz hashe, podaj tu hash z password
                 ps.executeQuery().use { rs ->
-                    return if (rs.next()) rsUser(rs) else null
+                    return if (rs.next()) rs.toUser() else null
                 }
             }
         }
+
+        /**
+         * Jeśli chcesz weryfikować np. bcrypt:
+         * 1) pobierz rekord po username (bez warunku na hasło),
+         * 2) sprawdź BCrypt.verifyer().verify(password.toCharArray(), password_hash_from_db),
+         * 3) zwróć User przy zgodności.
+         */
     }
 
-    // --- prywatne / pomocnicze ---
+    /** Lista użytkowników do widoku. */
+    fun findAll(): List<User> {
+        val sql = """
+            SELECT id, username, role, created_at
+            FROM users
+            ORDER BY username ASC
+        """.trimIndent()
 
-    private data class UserWithHash(
-        val id: Long,
-        val username: String,
-        val role: String,
-        val passwordHash: String
-    )
-
-    private fun findWithHash(username: String): UserWithHash? {
-        Database.getConnection().use { conn ->
-            conn.prepareStatement(
-                "SELECT id, username, role, password_hash FROM users WHERE username = ?"
-            ).use { ps ->
-                ps.setString(1, username)
-                ps.executeQuery().use { rs ->
-                    return if (rs.next()) {
-                        UserWithHash(
-                            id = rs.getLong("id"),
-                            username = rs.getString("username"),
-                            role = rs.getString("role"),
-                            passwordHash = rs.getString("password_hash")
-                        )
-                    } else null
+        val out = mutableListOf<User>()
+        Database.getConnection().use { con ->
+            con.createStatement().use { st ->
+                st.executeQuery(sql).use { rs ->
+                    while (rs.next()) out += rs.toUser()
                 }
             }
         }
+        return out
     }
 
-    private fun rsUser(rs: ResultSet) = User(
-        id = rs.getLong("id"),
-        username = rs.getString("username"),
-        role = rs.getString("role")
-    )
+    // --- mapper ---
+    private fun ResultSet.toUser(): User =
+        User(
+            id = getLong("id"),
+            username = getString("username"),
+            role = getString("role") ?: "user",
+            createdAt = getString("created_at")
+        )
 }

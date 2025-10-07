@@ -3,12 +3,12 @@ package erp
 import javax.swing.SwingUtilities
 import javax.swing.UIManager
 import ui.LoginFrame
-import db.UserDao
+import db.Database   // <-- używamy metody z obiektu Database
 
 fun main() {
-    // 1) Inicjalizacja bazy: tabela users + seed admin/admin (jeśli brak)
+    // 1) Inicjalizacja bazy (schema + seed)
     try {
-        UserDao.ensureSchemaAndSeed()
+        Database.ensureSchemaAndSeed()
         println("✅ Baza gotowa (schema + seed).")
     } catch (e: Exception) {
         System.err.println("❌ Błąd inicjalizacji bazy: ${e.message}")
@@ -20,7 +20,6 @@ fun main() {
         try {
             UIManager.setLookAndFeel(UIManager.getSystemLookAndFeelClassName())
         } catch (_: Exception) { /* ok */ }
-
         LoginFrame().isVisible = true
     }
 }

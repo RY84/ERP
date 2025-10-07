@@ -1,9 +1,15 @@
 package ui
 
 import java.awt.*
+import java.awt.event.MouseAdapter
+import java.awt.event.MouseEvent
+import javax.imageio.ImageIO
 import javax.swing.*
 
-class MainWindow : JFrame("Wszystko sam muszę robić...") {
+class MainWindow(private val username: String) : JFrame("Wszystko sam muszę robić...") {
+
+    // kontener na środek, żeby łatwo podmieniać widoki
+    private val centerHost = JPanel(BorderLayout())
 
     init {
         defaultCloseOperation = EXIT_ON_CLOSE
@@ -11,45 +17,89 @@ class MainWindow : JFrame("Wszystko sam muszę robić...") {
         setLocationRelativeTo(null)
         layout = BorderLayout()
 
-        // ===== Pasek u góry — styl jak w LoginFrame (ciemny, półprzezroczysty) =====
+        // ===== Pasek =====
         val topBar = JPanel(BorderLayout()).apply {
             isOpaque = true
-            background = Color(0, 0, 0, 180)     // półprzezroczyste tło
-            border = BorderFactory.createEmptyBorder(10, 12, 10, 12) // padding
-            preferredSize = Dimension(0, 60)     // docelowa wysokość ~60 px
+            background = Color(15, 15, 15)
+            border = BorderFactory.createMatteBorder(0, 0, 1, 0, Color(35, 35, 35))
+            preferredSize = Dimension(0, 64)
         }
 
-        // Prawa strona paska: przycisk WYLOGUJ
-        val rightBox = JPanel(FlowLayout(FlowLayout.RIGHT, 8, 0)).apply {
+        val lblTitle = JLabel(
+            "<html><span style='color:#00C800;'>Zalogowano do systemu jako:</span> " +
+                    "<span style='color:#00FF00; text-decoration:underline;'>$username</span></html>"
+        ).apply {
+            font = font.deriveFont(Font.BOLD, 13f)
+            horizontalAlignment = SwingConstants.LEFT
+            verticalAlignment = SwingConstants.TOP
+            border = BorderFactory.createEmptyBorder(6, 8, 0, 0)
+        }
+
+        val leftWrapper = JPanel(BorderLayout()).apply {
             isOpaque = false
+            add(lblTitle, BorderLayout.NORTH)
+        }
+        topBar.add(leftWrapper, BorderLayout.WEST)
+
+        val rightBox = JPanel(FlowLayout(FlowLayout.RIGHT, 10, 0)).apply {
+            isOpaque = false
+            border = BorderFactory.createEmptyBorder(10, 0, 10, 0)
         }
 
-        val btnLogout = JButton("Wyloguj").apply {
-            isOpaque = true
-            background = Color(0, 0, 0, 180)     // ten sam ciemny „pasek” pod guzikiem
-            foreground = Color.WHITE
-            font = font.deriveFont(Font.BOLD, 14f)
-            border = BorderFactory.createEmptyBorder(10, 16, 10, 16)
-            isFocusable = false
-            addActionListener {
-                dispose()
-                LoginFrame().isVisible = true
-            }
+        val userIcon = iconLabel("/user.png", "Użytkownicy", 44) {
+            showUsers()
         }
-        rightBox.add(btnLogout)
-
-        // (Opcjonalnie) lewa etykieta tytułu sekcji — spójna z LoginFrame
-        val lblTitle = JLabel("ERP — okno robocze").apply {
-            foreground = Color.WHITE
-            font = font.deriveFont(Font.BOLD, 16f)
+        val powerIcon = iconLabel("/logout.png", "Wyloguj", 44) {
+            dispose()
+            LoginFrame().isVisible = true
         }
 
-        topBar.add(lblTitle, BorderLayout.WEST)
+        rightBox.add(userIcon)
+        rightBox.add(powerIcon)
         topBar.add(rightBox, BorderLayout.EAST)
         add(topBar, BorderLayout.NORTH)
-        // ==========================================================================
 
-        // Środek – bez zmian
-        add(JLabel("Witaj w aplikacji ERP!", SwingConstants.CENTER), BorderLayout.CENTER)
+        // ===== Środek (domyślny ekran powitalny) =====
+        centerHost.add(JLabel("Witaj w systemie WSMR!", SwingConstants.CENTER), BorderLayout.CENTER)
+        add(centerHost, BorderLayout.CENTER)
+    }
+
+    private fun showUsers() {
+        centerHost.removeAll()
+        centerHost.add(UsersPanel(), BorderLayout.CENTER)
+        centerHost.revalidate()
+        centerHost.repaint()
+    }
+
+    private fun iconLabel(iconPath: String, tooltip: String, size: Int, onClick: () -> Unit): JComponent {
+        val icon = loadIconScaled(iconPath, size - 8, size - 8)
+        val label = JLabel(icon).apply {
+            this.toolTipText = tooltip
+            isOpaque = true
+            background = Color(15, 15, 15)
+            cursor = Cursor.getPredefinedCursor(Cursor.HAND_CURSOR)
+            horizontalAlignment = SwingConstants.CENTER
+            verticalAlignment = SwingConstants.CENTER
+            preferredSize = Dimension(size, size)
+            minimumSize = Dimension(size, size)
+            maximumSize = Dimension(size, size)
+            border = BorderFactory.createEmptyBorder()
+        }
+        val hoverBg = Color(28, 28, 28)
+        val normalBg = label.background
+        label.addMouseListener(object : MouseAdapter() {
+            override fun mouseEntered(e: MouseEvent) { label.background = hoverBg }
+            override fun mouseExited(e: MouseEvent) { label.background = normalBg }
+            override fun mouseClicked(e: MouseEvent) { onClick() }
+        })
+        return label
+    }
+
+    private fun loadIconScaled(path: String, w: Int, h: Int): Icon? {
+        return try {
+            val img = javaClass.getResourceAsStream(path)?.use { ImageIO.read(it) } ?: return null
+            val scaled = img.getScaledInstance(w, h, Image.SCALE_SMOOTH)
+            ImageIcon(scaled)
+        } catch (_: Exception) { null }
     }
 }

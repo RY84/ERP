@@ -1,33 +1,51 @@
-# IntelliJ
-/.idea/
-/*.iml
-/out/
+# ============================================
+# Kotlin + Gradle + IntelliJ + ERP ZGO Project
+# ============================================
 
-# Gradle
-/.gradle/
-/build/
+# === Gradle ===
+.gradle/
+build/
+!gradle/wrapper/gradle-wrapper.jar
+!gradle/wrapper/gradle-wrapper.properties
 
-# Kotlin / Java
-*.class
-*.jar
-*.war
-*.ear
+# === IntelliJ IDEA ===
+.idea/
+*.iml
+out/
 
-# Local config
-local.properties
-
-# Logs
-*.log
-
-# System
+# === OS ===
+# macOS
 .DS_Store
+# Windows
 Thumbs.db
+ehthumbs.db
+Desktop.ini
+# Linux
+*~
 
-# Editors
+# === Java / Kotlin ===
+*.class
+*.log
+hs_err_pid*
+replay_pid*
+
+# === ERP ZGO specific ===
+# Plik konfiguracyjny z hasłami DB
+config.properties
+
+# Zbudowane artefakty (fat JAR + instalatory)
+build/libs/
+build/installers/
+build/jpackage/
+build/tmp/
+build/distributions/
+
+# Archiwa i backupy
+*.zip
+*.tar
+*.tar.gz
+*.bak
+*.old
+
+# === VS Code (jeśli używasz) ===
 .vscode/
-.idea_modules/
-
-# Temporary
-tmp/
-config.properties
-config.properties

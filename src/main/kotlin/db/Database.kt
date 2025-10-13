@@ -1,5 +1,6 @@
 package db
 
+import java.io.File
 import java.io.FileInputStream
 import java.util.Properties
 import java.sql.Connection
@@ -11,9 +12,22 @@ object Database {
 
     init {
         try {
-            FileInputStream("config.properties").use { fis ->
+            // 🔸 DODANE LOGI DO DIAGNOSTYKI
+            println("CONFIG: user.dir = " + System.getProperty("user.dir"))
+            val cfgFile = File("config.properties")
+            println("CONFIG: looking for file = " + cfgFile.absolutePath)
+            if (!cfgFile.exists()) {
+                throw IllegalStateException("Plik config.properties nie istnieje w tej ścieżce!")
+            }
+
+            FileInputStream(cfgFile).use { fis ->
                 props.load(fis)
             }
+
+            println(
+                "CONFIG: loaded host=${props["db.host"]}, port=${props["db.port"]}, " +
+                        "db=${props["db.name"]}, user=${props["db.user"]}"
+            )
         } catch (ex: Exception) {
             throw IllegalStateException("❌ Nie mogę załadować pliku config.properties: ${ex.message}")
         }

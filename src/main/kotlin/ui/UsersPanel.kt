@@ -34,7 +34,7 @@ class UsersPanel : JPanel(BorderLayout()) {
 
     private fun loadData() {
         model.rowCount = 0
-        val users: List<User> = UserDao.findAll()
+        val users: List<User> = UserDao.getAll()
         users.forEach { u ->
             model.addRow(arrayOf(u.id, u.username, u.role, u.createdAt))
         }

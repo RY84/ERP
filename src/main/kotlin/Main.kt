@@ -3,7 +3,7 @@ package erp
 import javax.swing.SwingUtilities
 import javax.swing.UIManager
 import ui.LoginFrame
-import db.Database   // <-- używamy metody z obiektu Database
+import db.Database   // <- używamy metody z obiektu Database
 
 fun main() {
     // 1) Inicjalizacja bazy (schema + seed)

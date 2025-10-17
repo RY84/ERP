@@ -1,9 +1,6 @@
 package ui
 
-import ui.TopBar
 import java.awt.*
-import java.awt.event.MouseAdapter
-import java.awt.event.MouseEvent
 import javax.imageio.ImageIO
 import javax.swing.*
 import javax.swing.border.EmptyBorder
@@ -21,7 +18,7 @@ class MainWindow(private val username: String) : JFrame("Wszystko sam muszę rob
         val root = JPanel(BorderLayout())
         contentPane = root
 
-        // ===== GÓRNY PASEK (nowy komponent) =====
+        // ===== GÓRNY PASEK =====
         val topBar = TopBar(
             username = username,
             onHome = { showHome() },
@@ -29,14 +26,11 @@ class MainWindow(private val username: String) : JFrame("Wszystko sam muszę rob
             onLogout = { onLogout() }
         )
 
-        // ===== ŚRODEK =====
-        centerHost.background = Color(20, 20, 20)
+        centerHost.background = Theme.bg
 
-        // ===== GŁÓWNY LAYOUT =====
         root.add(topBar, BorderLayout.NORTH)
         root.add(centerHost, BorderLayout.CENTER)
 
-        // Start od HomePanel
         showHome()
 
         pack()
@@ -59,36 +53,9 @@ class MainWindow(private val username: String) : JFrame("Wszystko sam muszę rob
         centerHost.repaint()
     }
 
+    /** Wylogowanie — wracamy do LoginFrame z prefillem aktualnego użytkownika (sesyjnie). */
     private fun onLogout() {
         dispose()
-        LoginFrame().isVisible = true
-    }
-
-    // (opcjonalnie — jeśli gdzieś używasz jeszcze ikon-etykiet w środku)
-    private fun iconLabel(iconPath: String, tooltip: String, onClick: () -> Unit): JLabel? {
-        val icon = loadIconScaled(iconPath, 22, 22) ?: return null
-        val label = JLabel(icon).apply {
-            isOpaque = true
-            background = Color(0, 0, 0, 0)
-            border = EmptyBorder(6, 6, 6, 6)
-            toolTipText = tooltip
-            cursor = Cursor.getPredefinedCursor(Cursor.HAND_CURSOR)
-        }
-        val normalBg = Color(0, 0, 0, 0)
-        val hoverBg = Color(50, 50, 50, 90)
-        label.addMouseListener(object : MouseAdapter() {
-            override fun mouseEntered(e: MouseEvent) { label.background = hoverBg }
-            override fun mouseExited(e: MouseEvent) { label.background = normalBg }
-            override fun mouseClicked(e: MouseEvent) { onClick() }
-        })
-        return label
-    }
-
-    private fun loadIconScaled(path: String, w: Int, h: Int): Icon? {
-        return try {
-            val img = javaClass.getResourceAsStream(path)?.use { ImageIO.read(it) } ?: return null
-            val scaled = img.getScaledInstance(w, h, Image.SCALE_SMOOTH)
-            ImageIcon(scaled)
-        } catch (_: Exception) { null }
+        LoginFrame(prefillUsername = username).isVisible = true
     }
 }

@@ -14,36 +14,39 @@ class TopBar(
     private val onLogout: () -> Unit
 ) : JPanel(BorderLayout()) {
 
-    // Pixel-perfect proporcje
-    private val barHeight = 56          // wysokość paska
-    private val iconSize = 48           // rozmiar grafiki
-    private val iconPad  = 3            // padding wokół grafiki (góra/dół/lewo/prawo)
-    private val accentGreen = Color(0, 205, 0)
+    private val barHeight = 56
+    private val iconSize = 48
+    private val iconPad = 3
 
     init {
         isOpaque = true
-        background = Color(25, 25, 25)
-        // 56 - (48 + 3 + 3) = 2 -> po 1 px na górze i dole
+        background = Theme.panel
         border = EmptyBorder(1, 12, 1, 12)
 
-        // Lewa/prawa część — smukłe odstępy, centrowanie pionowe
-        val left = JPanel(FlowLayout(FlowLayout.LEFT, 10, 0)).apply { isOpaque = false; alignmentY = Component.CENTER_ALIGNMENT }
-        val right = JPanel(FlowLayout(FlowLayout.RIGHT, 10, 0)).apply { isOpaque = false; alignmentY = Component.CENTER_ALIGNMENT }
+        val left = JPanel(FlowLayout(FlowLayout.LEFT, 10, 0)).apply {
+            isOpaque = false
+            alignmentY = Component.CENTER_ALIGNMENT
+        }
 
-        // --- HOME (po lewej) ---
+        val right = JPanel(FlowLayout(FlowLayout.RIGHT, 10, 0)).apply {
+            isOpaque = false
+            alignmentY = Component.CENTER_ALIGNMENT
+        }
+
+        // --- HOME ---
         loadIconScaled("/home.png", iconSize, iconSize)?.let {
             left.add(iconButton(it, "Strona główna") { onHome() })
         }
 
-        // --- Prawa strona: login (zielony), Użytkownicy, Wyloguj ---
+        // --- Prawa strona ---
         right.add(JLabel(username).apply {
-            foreground = accentGreen
+            foreground = Theme.accent
             font = font.deriveFont(Font.BOLD, 16f)
             isOpaque = false
             toolTipText = "Zalogowano jako $username"
             horizontalAlignment = SwingConstants.CENTER
             verticalAlignment = SwingConstants.CENTER
-            preferredSize = Dimension(preferredSize.width, iconSize + iconPad * 2) // 54 px -> równa wysokość jak ikony
+            preferredSize = Dimension(preferredSize.width, iconSize + iconPad * 2)
         })
 
         loadIconScaled("/user.png", iconSize, iconSize)?.let {
@@ -61,22 +64,59 @@ class TopBar(
         maximumSize = Dimension(Int.MAX_VALUE, barHeight)
     }
 
-    /** Ikonowy „guzik” (bez hovera), idealnie centrowany, 54×54 px. */
     private fun iconButton(icon: Icon, tooltip: String, onClick: () -> Unit): JLabel =
         JLabel(icon).apply {
             isOpaque = false
             toolTipText = tooltip
             cursor = Cursor.getPredefinedCursor(Cursor.HAND_CURSOR)
             border = EmptyBorder(iconPad, iconPad, iconPad, iconPad)
-            val side = iconSize + iconPad * 2 // 54 px
+            val side = iconSize + iconPad * 2
             preferredSize = Dimension(side, side)
             minimumSize = preferredSize
             maximumSize = preferredSize
             horizontalAlignment = SwingConstants.CENTER
             verticalAlignment = SwingConstants.CENTER
             alignmentY = Component.CENTER_ALIGNMENT
+
             addMouseListener(object : MouseAdapter() {
-                override fun mouseClicked(e: MouseEvent) { onClick() }
+                override fun mouseEntered(e: MouseEvent) {
+                    border = javax.swing.border.CompoundBorder(
+                        javax.swing.border.LineBorder(Theme.accent, 2, true),
+                        EmptyBorder(iconPad - 1, iconPad - 1, iconPad - 1, iconPad - 1)
+                    )
+                    isOpaque = true
+                    background = Theme.selection
+                    repaint()
+                }
+
+                override fun mouseExited(e: MouseEvent) {
+                    border = EmptyBorder(iconPad, iconPad, iconPad, iconPad)
+                    isOpaque = false
+                    background = Color(0, 0, 0, 0)
+                    repaint()
+                }
+
+                override fun mousePressed(e: MouseEvent) {
+                    background = Theme.selection.darker()
+                    isOpaque = true
+                    repaint()
+                }
+
+                override fun mouseReleased(e: MouseEvent) {
+                    if (contains(e.point)) {
+                        background = Theme.selection
+                        isOpaque = true
+                    } else {
+                        isOpaque = false
+                        background = Color(0, 0, 0, 0)
+                        border = EmptyBorder(iconPad, iconPad, iconPad, iconPad)
+                    }
+                    repaint()
+                }
+
+                override fun mouseClicked(e: MouseEvent) {
+                    onClick()
+                }
             })
         }
 

@@ -12,29 +12,23 @@ object Database {
     private val props = Properties()
 
     init {
+        // Konfiguracja z pliku config.properties (w katalogu roboczym)
         try {
-            // 🔸 DIAGNOSTYKA KONFIGU
-            println("CONFIG: user.dir = " + System.getProperty("user.dir"))
+            println("CONFIG: user.dir = ${System.getProperty("user.dir")}")
             val cfgFile = File("config.properties")
-            println("CONFIG: looking for file = " + cfgFile.absolutePath)
-            if (!cfgFile.exists()) {
-                throw IllegalStateException("Plik config.properties nie istnieje w tej ścieżce!")
-            }
+            println("CONFIG: looking for file = ${cfgFile.absolutePath}")
+            if (!cfgFile.exists()) throw IllegalStateException("Brak pliku config.properties!")
+
             FileInputStream(cfgFile).use { props.load(it) }
-            println(
-                "CONFIG: loaded host=${props["db.host"]}, port=${props["db.port"]}, " +
-                        "db=${props["db.name"]}, user=${props["db.user"]}"
-            )
+            println("CONFIG: loaded host=${props["db.host"]}, port=${props["db.port"]}, db=${props["db.name"]}, user=${props["db.user"]}")
         } catch (ex: Exception) {
-            throw IllegalStateException("❌ Nie mogę załadować pliku config.properties: ${ex.message}")
+            throw IllegalStateException("❌ Nie mogę załadować config.properties: ${ex.message}")
         }
 
+        // Szybki test połączenia (tylko log)
         try {
-            getConnection().use { _ ->
-                println(
-                    "✅ Połączono z PostgreSQL @ ${props["db.host"]}:${props["db.port"]}/${props["db.name"]} " +
-                            "jako ${props["db.user"]}"
-                )
+            getConnection().use {
+                println("✅ Połączono z PostgreSQL @ ${props["db.host"]}:${props["db.port"]}/${props["db.name"]} jako ${props["db.user"]}")
             }
         } catch (ex: SQLException) {
             System.err.println("❌ Błąd połączenia z bazą: ${ex.message}")
@@ -43,105 +37,91 @@ object Database {
 
     fun getConnection(): Connection {
         val url = "jdbc:postgresql://${props["db.host"]}:${props["db.port"]}/${props["db.name"]}"
-        val user = props["db.user"] as String
-        val pass = props["db.pass"] as String
-        return DriverManager.getConnection(url, user, pass)
+        return DriverManager.getConnection(url, props["db.user"] as String, props["db.pass"] as String)
     }
 
-    /** Tworzy schemat i seeduje admina; wykonuje też migrację password -> password_hash z haszowaniem. */
+    /**
+     * Minimalna, trwała wersja:
+     * - tworzy tabelę users (jeśli brak),
+     * - zapewnia istnienie kolumn: password_hash, active, last_login,
+     * - dba o unikalność username,
+     * - seeduje admin/admin (BCrypt) gdy brak.
+     */
     fun ensureSchemaAndSeed() {
         try {
             getConnection().use { conn ->
                 conn.autoCommit = false
                 try {
-                    // 1) Tabela users w docelowym kształcie
+                    // 1) Tabela w docelowym kształcie (bez destrukcyjnych zmian)
                     conn.createStatement().use { st ->
                         st.execute(
                             """
                             CREATE TABLE IF NOT EXISTS users (
-                                id          SERIAL PRIMARY KEY,
-                                username    TEXT NOT NULL,
-                                password_hash TEXT NOT NULL,
-                                role        TEXT NOT NULL DEFAULT 'user',
-                                active      BOOLEAN NOT NULL DEFAULT TRUE,
-                                created_at  TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                                id             SERIAL PRIMARY KEY,
+                                username       TEXT NOT NULL,
+                                password_hash  TEXT NOT NULL,
+                                role           TEXT NOT NULL DEFAULT 'user',
+                                active         BOOLEAN NOT NULL DEFAULT TRUE,
+                                created_at     TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                                last_login     TIMESTAMP NULL
                             );
                             """.trimIndent()
                         )
-                        // Unikalność username
+
+                        // 2) Unikalność username (idempotentnie)
                         st.execute(
                             """
                             DO $$
                             BEGIN
                                 IF NOT EXISTS (
                                     SELECT 1 FROM pg_indexes 
-                                    WHERE schemaname = 'public' AND indexname = 'users_username_uq'
+                                    WHERE schemaname='public' AND indexname='users_username_uq'
                                 ) THEN
                                     CREATE UNIQUE INDEX users_username_uq ON users(username);
                                 END IF;
                             END$$;
                             """.trimIndent()
                         )
+
+                        // 3) Gwarancja brakujących kolumn (idempotentnie)
+                        st.execute(
+                            """
+                            DO $$
+                            BEGIN
+                                IF NOT EXISTS (
+                                    SELECT 1 FROM information_schema.columns
+                                    WHERE table_schema='public' AND table_name='users' AND column_name='password_hash'
+                                ) THEN
+                                    ALTER TABLE users ADD COLUMN password_hash TEXT NOT NULL DEFAULT '';
+                                END IF;
+
+                                IF NOT EXISTS (
+                                    SELECT 1 FROM information_schema.columns
+                                    WHERE table_schema='public' AND table_name='users' AND column_name='active'
+                                ) THEN
+                                    ALTER TABLE users ADD COLUMN active BOOLEAN NOT NULL DEFAULT TRUE;
+                                END IF;
+
+                                IF NOT EXISTS (
+                                    SELECT 1 FROM information_schema.columns
+                                    WHERE table_schema='public' AND table_name='users' AND column_name='last_login'
+                                ) THEN
+                                    ALTER TABLE users ADD COLUMN last_login TIMESTAMP NULL;
+                                END IF;
+                            END$$;
+                            """.trimIndent()
+                        )
                     }
 
-                    // 2) MIGRACJA: jeśli istnieje kolumna 'password' (stare instalacje), to ją przenosimy do password_hash (z BCrypt)
-                    val hasLegacy = conn.prepareStatement(
-                        """
-                        SELECT 1 
-                        FROM information_schema.columns 
-                        WHERE table_schema='public' AND table_name='users' AND column_name='password'
-                        """.trimIndent()
-                    ).use { pst -> pst.executeQuery().use { it.next() } }
-
-                    val hasHash = conn.prepareStatement(
-                        """
-                        SELECT 1 
-                        FROM information_schema.columns 
-                        WHERE table_schema='public' AND table_name='users' AND column_name='password_hash'
-                        """.trimIndent()
-                    ).use { pst -> pst.executeQuery().use { it.next() } }
-
-                    if (hasLegacy && hasHash) {
-                        // a) pobierz stare hasła w plaintext
-                        val rows = mutableListOf<Pair<Long, String>>()
-                        conn.prepareStatement("SELECT id, password FROM users WHERE password IS NOT NULL").use { pst ->
-                            pst.executeQuery().use { rs ->
-                                while (rs.next()) {
-                                    rows += rs.getLong("id") to rs.getString("password")
-                                }
-                            }
-                        }
-                        // b) przepisz do password_hash jako BCrypt
-                        conn.prepareStatement("UPDATE users SET password_hash = ? WHERE id = ?").use { up ->
-                            for ((id, plain) in rows) {
-                                val hash = BCrypt.withDefaults().hashToString(12, plain.toCharArray())
-                                up.setString(1, hash)
-                                up.setLong(2, id)
-                                up.addBatch()
-                            }
-                            up.executeBatch()
-                        }
-                        // c) usuń starą kolumnę
-                        conn.createStatement().use { st -> st.execute("ALTER TABLE users DROP COLUMN password") }
-                        println("🔄 Migracja: password → password_hash (BCrypt) zakończona.")
-                    } else if (hasLegacy && !hasHash) {
-                        // awaryjnie – gdyby ktoś usunął docelową kolumnę
-                        conn.createStatement().use { st -> st.execute("ALTER TABLE users ADD COLUMN password_hash TEXT NOT NULL DEFAULT ''") }
-                        println("ℹ️ Dodano brakującą kolumnę password_hash – uruchom ponownie, aby dokończyć migrację.")
-                    }
-
-                    // 3) SEED: admin/admin z BCrypt (jeśli nie istnieje)
+                    // 4) Seed admin/admin (BCrypt), jeśli nie istnieje
                     val adminExists = conn.prepareStatement(
-                        "SELECT 1 FROM users WHERE username = 'admin' LIMIT 1"
+                        "SELECT 1 FROM users WHERE username='admin' LIMIT 1"
                     ).use { pst -> pst.executeQuery().use { it.next() } }
 
                     if (!adminExists) {
                         val adminHash = BCrypt.withDefaults().hashToString(12, "admin".toCharArray())
                         conn.prepareStatement(
-                            """
-                            INSERT INTO users(username, password_hash, role, active, created_at)
-                            VALUES ('admin', ?, 'admin', TRUE, CURRENT_TIMESTAMP)
-                            """.trimIndent()
+                            "INSERT INTO users(username, password_hash, role, active, created_at) VALUES ('admin', ?, 'admin', TRUE, CURRENT_TIMESTAMP)"
                         ).use { pst ->
                             pst.setString(1, adminHash)
                             pst.executeUpdate()

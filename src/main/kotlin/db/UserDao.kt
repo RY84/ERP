@@ -2,12 +2,15 @@ package db
 
 import at.favre.lib.crypto.bcrypt.BCrypt
 import java.sql.ResultSet
+import java.time.LocalDateTime
 
 data class User(
     val id: Long,
     val username: String,
     val role: String,
-    val createdAt: java.time.LocalDateTime
+    val active: Boolean,
+    val createdAt: LocalDateTime,
+    val lastLogin: LocalDateTime?
 )
 
 object UserDao {
@@ -17,13 +20,15 @@ object UserDao {
             id = rs.getLong("id"),
             username = rs.getString("username"),
             role = rs.getString("role"),
-            createdAt = rs.getTimestamp("created_at").toLocalDateTime()
+            active = rs.getBoolean("active"),
+            createdAt = rs.getTimestamp("created_at").toLocalDateTime(),
+            lastLogin = rs.getTimestamp("last_login")?.toLocalDateTime()
         )
 
     // LISTA
     fun getAll(search: String? = null, limit: Int = 200, offset: Int = 0): List<User> {
         val sql = buildString {
-            append("SELECT id, username, role, created_at FROM users ")
+            append("SELECT id, username, role, active, created_at, last_login FROM users ")
             if (!search.isNullOrBlank()) append("WHERE username ILIKE ? OR role ILIKE ? ")
             append("ORDER BY id ASC LIMIT ? OFFSET ?")
         }
@@ -70,15 +75,15 @@ object UserDao {
     }
 
     // CREATE
-    fun create(username: String, rawPassword: String, role: String): Long {
+    fun create(username: String, rawPassword: String, role: String, active: Boolean = true): Long {
         require(username.isNotBlank()) { "Username cannot be blank" }
         require(rawPassword.isNotBlank()) { "Password cannot be blank" }
         if (existsUsername(username)) error("Użytkownik o takiej nazwie już istnieje")
 
         val hash = BCrypt.withDefaults().hashToString(12, rawPassword.toCharArray())
         val sql = """
-            INSERT INTO users(username, password_hash, role, created_at)
-            VALUES (?, ?, ?, now())
+            INSERT INTO users(username, password_hash, role, active, created_at)
+            VALUES (?, ?, ?, ?, now())
             RETURNING id
         """.trimIndent()
         Database.getConnection().use { conn ->
@@ -86,12 +91,13 @@ object UserDao {
                 st.setString(1, username)
                 st.setString(2, hash)
                 st.setString(3, role)
+                st.setBoolean(4, active)
                 st.executeQuery().use { rs -> rs.next(); return rs.getLong(1) }
             }
         }
     }
 
-    // UPDATE
+    // UPDATE (bez zmiany 'active' w tym momencie – do dodania w panelu edycji)
     fun update(id: Long, username: String, role: String, newRawPassword: String? = null) {
         require(id > 0) { "Invalid id" }
         require(username.isNotBlank()) { "Username cannot be blank" }
@@ -135,10 +141,10 @@ object UserDao {
         }
     }
 
-    // AUTH
+    // AUTH – zapisuje last_login po udanym logowaniu
     fun authenticate(username: String, rawPassword: String): User? {
         val sql = """
-            SELECT id, username, role, created_at, password_hash
+            SELECT id, username, role, active, created_at, last_login, password_hash
             FROM users
             WHERE username = ?
             LIMIT 1
@@ -153,14 +159,24 @@ object UserDao {
                     val ok = try {
                         BCrypt.verifyer().verify(rawPassword.toCharArray(), hash.toCharArray()).verified
                     } catch (_: Exception) { false }
-                    return if (ok) {
-                        User(
-                            id = rs.getLong("id"),
-                            username = rs.getString("username"),
-                            role = rs.getString("role"),
-                            createdAt = rs.getTimestamp("created_at").toLocalDateTime()
-                        )
-                    } else null
+                    if (!ok) return null
+
+                    val id = rs.getLong("id")
+
+                    // Zapisz last_login = now()
+                    conn.prepareStatement("UPDATE users SET last_login = now() WHERE id = ?").use { up ->
+                        up.setLong(1, id); up.executeUpdate()
+                    }
+
+                    // Zwróć obiekt użytkownika (z aktualnym last_login)
+                    return User(
+                        id = id,
+                        username = rs.getString("username"),
+                        role = rs.getString("role"),
+                        active = rs.getBoolean("active"),
+                        createdAt = rs.getTimestamp("created_at").toLocalDateTime(),
+                        lastLogin = java.time.LocalDateTime.now()
+                    )
                 }
             }
         }

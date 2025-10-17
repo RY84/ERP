@@ -15,8 +15,9 @@ class TopBar(
 ) : JPanel(BorderLayout()) {
 
     private val barHeight = 56
-    private val iconSize = 48
-    private val iconPad = 3
+    private val iconSize = 44
+    private val iconPad = 6
+    private val accentGreen = Color(0, 205, 0)
 
     init {
         isOpaque = true
@@ -27,7 +28,6 @@ class TopBar(
             isOpaque = false
             alignmentY = Component.CENTER_ALIGNMENT
         }
-
         val right = JPanel(FlowLayout(FlowLayout.RIGHT, 10, 0)).apply {
             isOpaque = false
             alignmentY = Component.CENTER_ALIGNMENT
@@ -38,15 +38,12 @@ class TopBar(
             left.add(iconButton(it, "Strona główna") { onHome() })
         }
 
-        // --- Prawa strona ---
+        // --- Username + Ikony po prawej ---
         right.add(JLabel(username).apply {
-            foreground = Theme.accent
+            foreground = accentGreen
             font = font.deriveFont(Font.BOLD, 16f)
             isOpaque = false
             toolTipText = "Zalogowano jako $username"
-            horizontalAlignment = SwingConstants.CENTER
-            verticalAlignment = SwingConstants.CENTER
-            preferredSize = Dimension(preferredSize.width, iconSize + iconPad * 2)
         })
 
         loadIconScaled("/user.png", iconSize, iconSize)?.let {
@@ -66,52 +63,25 @@ class TopBar(
 
     private fun iconButton(icon: Icon, tooltip: String, onClick: () -> Unit): JLabel =
         JLabel(icon).apply {
-            isOpaque = false
+            isOpaque = true
+            background = Theme.panel
             toolTipText = tooltip
             cursor = Cursor.getPredefinedCursor(Cursor.HAND_CURSOR)
             border = EmptyBorder(iconPad, iconPad, iconPad, iconPad)
             val side = iconSize + iconPad * 2
             preferredSize = Dimension(side, side)
-            minimumSize = preferredSize
-            maximumSize = preferredSize
             horizontalAlignment = SwingConstants.CENTER
             verticalAlignment = SwingConstants.CENTER
             alignmentY = Component.CENTER_ALIGNMENT
 
+            val hoverColor = Color(40, 40, 40)
             addMouseListener(object : MouseAdapter() {
                 override fun mouseEntered(e: MouseEvent) {
-                    border = javax.swing.border.CompoundBorder(
-                        javax.swing.border.LineBorder(Theme.accent, 2, true),
-                        EmptyBorder(iconPad - 1, iconPad - 1, iconPad - 1, iconPad - 1)
-                    )
-                    isOpaque = true
-                    background = Theme.selection
-                    repaint()
+                    background = hoverColor
                 }
 
                 override fun mouseExited(e: MouseEvent) {
-                    border = EmptyBorder(iconPad, iconPad, iconPad, iconPad)
-                    isOpaque = false
-                    background = Color(0, 0, 0, 0)
-                    repaint()
-                }
-
-                override fun mousePressed(e: MouseEvent) {
-                    background = Theme.selection.darker()
-                    isOpaque = true
-                    repaint()
-                }
-
-                override fun mouseReleased(e: MouseEvent) {
-                    if (contains(e.point)) {
-                        background = Theme.selection
-                        isOpaque = true
-                    } else {
-                        isOpaque = false
-                        background = Color(0, 0, 0, 0)
-                        border = EmptyBorder(iconPad, iconPad, iconPad, iconPad)
-                    }
-                    repaint()
+                    background = Theme.panel
                 }
 
                 override fun mouseClicked(e: MouseEvent) {

@@ -1,9 +1,9 @@
 {
-  "latest_client_version": "1.0.0",
+  "latest_client_version": "1.0.1",
   "min_required_client_version": "1.0.0",
   "changelog": [
-    "Pierwsze wydanie WSMR"
+    "Druga wersja klienta – dodano automatyczną aktualizację."
   ],
-  "download_url": "https://github.com/RY84/ERP/releases/download/v1.0.0/client-1.0.0.zip",
-  "sha256": "24d462e69054a47272708d4bc27c30cf28c70a427975298aaa7aba584c89a4e2"
+  "download_url": "https://github.com/RY84/ERP/releases/download/v1.0.1/client-1.0.1.zip",
+  "sha256": "cb890bcc269cf1935f942180ff5eb66d7d25f5add0deb7a0b88e84e679ab77de"
 }

@@ -4,5 +4,6 @@
   "changelog": [
     "Pierwsze wydanie WSMR"
   ],
-  "download_url": "https://github.com/RY84/ERP/releases/download/v1.0.0/client-1.0.0.zip"
+  "download_url": "https://github.com/RY84/ERP/releases/download/v1.0.0/client-1.0.0.zip",
+  "sha256": "24d462e69054a47272708d4bc27c30cf28c70a427975298aaa7aba584c89a4e2"
 }

@@ -4,12 +4,13 @@ import utils.Paths
 import java.io.InputStream
 import java.net.URL
 import java.nio.file.Files
+import java.nio.file.Path
 import java.nio.file.StandardCopyOption
 import java.security.MessageDigest
 
 /**
  * Pobiera meta (app-version.json), ściąga ZIP, liczy SHA256 i porównuje.
- * Na tym etapie NIE podmieniamy jeszcze plików aplikacji – tylko weryfikujemy.
+ * Zwraca ścieżkę do poprawnie zweryfikowanego pliku ZIP (albo null przy błędzie).
  */
 object DownloadAndVerify {
 
@@ -23,11 +24,11 @@ object DownloadAndVerify {
         val sha256: String
     )
 
-    /** Główna procedura testowa: pobierz ZIP i zweryfikuj SHA256. */
-    fun run() {
+    /** Główna procedura: pobierz ZIP i zweryfikuj SHA256. Zwraca Path do ZIP-a albo null. */
+    fun run(): Path? {
         val meta = fetchMeta() ?: run {
             println("⚠️  Brak metadanych aktualizacji – przerywam.")
-            return
+            return null
         }
 
         println("⬇️  Przygotowanie do pobrania ZIP:")
@@ -36,7 +37,7 @@ object DownloadAndVerify {
         println("    sha256(meta)=${meta.sha256}")
 
         val zipPath = Paths.tmpDir.resolve("client-${meta.latest}.zip").toPath()
-        try {
+        return try {
             // Pobierz ZIP do katalogu tymczasowego
             URL(meta.downloadUrl).openConnection().apply {
                 connectTimeout = 10_000
@@ -54,13 +55,15 @@ object DownloadAndVerify {
             // Porównanie
             if (localSha.equals(meta.sha256, ignoreCase = true)) {
                 println("🟢 Weryfikacja SHA256 OK — paczka jest autentyczna i nienaruszona.")
+                zipPath
             } else {
                 println("🔴 BŁĄD weryfikacji SHA256! Oczekiwano ${meta.sha256}, ale otrzymano $localSha")
-                println("    Paczka zostaje uznana za niepoprawną — NIE wolno jej instalować.")
+                null
             }
         } catch (e: Exception) {
             System.err.println("❌ Błąd pobierania/weryfikacji ZIP: ${e.message}")
             e.printStackTrace()
+            null
         }
     }
 

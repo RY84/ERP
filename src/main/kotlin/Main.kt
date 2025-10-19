@@ -13,13 +13,14 @@ import updater.Install
 import updater.Launcher
 
 object Version {
+    // Aktualna wersja klienta — MUSI odpowiadać wersji zbudowanego JAR-a
     const val current = "1.0.1"
 }
 
 fun main() {
     println("🚀 Startuję WSMR, wersja ${Version.current}")
 
-    // 1) Inicjalizacja bazy (schema + seed / migracja)
+    // 1) Inicjalizacja bazy danych (schema + seed)
     try {
         Database.ensureSchemaAndSeed()
         println("✅ Baza gotowa (schema + seed).")
@@ -28,7 +29,7 @@ fun main() {
         e.printStackTrace()
     }
 
-    // 2) Katalogi (config/log/tmp/app)
+    // 2) Upewnij się, że katalogi konfiguracyjne istnieją
     try {
         Paths.ensureDirs()
     } catch (e: Exception) {
@@ -36,28 +37,30 @@ fun main() {
         e.printStackTrace()
     }
 
-    // 3) Sonda: pobierz surowy JSON i wypisz (dla diagnostyki)
+    // 3) Pobierz metadane aktualizacji (app-version.json)
     UpdateProbe.run()
 
-    // 4) PORÓWNANIE WERSJI – tylko decyzja (bez pobierania ZIP-a)
+    // 4) Porównaj wersję lokalną z najnowszą
     UpdateCheck.run(Version.current)
 
-    // 5) AUTO-UPDATE – pobierz ZIP i zweryfikuj SHA256
-    DownloadAndVerify.run()
+    // 5) Pobierz i zweryfikuj paczkę ZIP (jeśli jest nowa wersja)
+    val downloadedZip = DownloadAndVerify.run()
 
-    // 6) INSTALACJA – rozpakuj ZIP do katalogu aplikacji
-    val zipPath = Paths.tmpDir.resolve("client-${Version.current}.zip").toPath()
-    Install.installFrom(zipPath)
+    if (downloadedZip != null) {
+        // 6) Zainstaluj pobraną wersję
+        Install.installFrom(downloadedZip)
 
-    // 7) RESTART – uruchom zainstalowany JAR i zakończ bieżący proces (jeśli wszystko poprawne)
-    Launcher.launchInstalledAndExitIfFound()
+        // 7) Uruchom nową wersję i zakończ bieżący proces
+        Launcher.launchInstalledAndExitIfFound()
+        return
+    }
 
-    // 8) UI – start logowania (jeśli nie było potrzeby restartu)
+    // 8) Jeśli nie było aktualizacji, uruchom UI logowania
     SwingUtilities.invokeLater {
         try {
             UIManager.setLookAndFeel(UIManager.getSystemLookAndFeelClassName())
         } catch (_: Exception) {
-            // pomijamy
+            // pomijamy błędy L&F
         }
 
         Theme.applyGlobalUI()

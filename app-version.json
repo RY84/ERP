@@ -2,8 +2,8 @@
   "latest_client_version": "1.0.1",
   "min_required_client_version": "1.0.0",
   "changelog": [
-    "Druga wersja klienta – dodano automatyczną aktualizację."
+    "Druga wersja klienta – naprawiono restart po aktualizacji."
   ],
   "download_url": "https://github.com/RY84/ERP/releases/download/v1.0.1/client-1.0.1.zip",
-  "sha256": "31bc9da044fe852e5fc18dd81e49684a8dee8a27fe122989abae3e1ca84a1a6a"
+  "sha256": "ff71cd6cf5576e7cbf42449ba61aedfca7ab0aa318cc466f7230eb6de4f3dddd"
 }

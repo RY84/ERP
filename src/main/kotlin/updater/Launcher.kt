@@ -1,6 +1,5 @@
 package updater
 
-import utils.Paths
 import java.io.File
 
 /**
@@ -28,19 +27,20 @@ object Launcher {
         println("🚗 Uruchamiam nową instancję: $cmd")
         println("   workingDir: ${workDir.absolutePath}")
 
-        try {
+        return try {
             ProcessBuilder(cmd)
                 .directory(workDir)
                 .inheritIO()      // przekazuje IO do konsoli
                 .start()
-            println("✅ Nowy proces wystartował. Kończę bieżący proces.")
-            // eleganckie zamknięcie
-            Runtime.getRuntime().halt(0) // bez wywoływania shutdown hooków z IDE
-            @Suppress("UNREACHABLE_CODE")
-            return true
+
+            println("✅ Nowy proces wystartował. Kończę bieżący proces (System.exit(0)).")
+            // krótka pauza, by nowy proces zdążył „złapać” terminal/okno
+            try { Thread.sleep(250) } catch (_: InterruptedException) {}
+            System.exit(0)
+            true // tu i tak nie dojdziemy
         } catch (e: Exception) {
             System.err.println("❌ Launcher: nie udało się uruchomić nowej instancji: ${e.message}")
-            return false
+            false
         }
     }
 }

@@ -1,36 +1,58 @@
 package updater
 
-import utils.Paths
+import java.io.File
+import java.net.HttpURLConnection
 import java.net.URL
 import java.nio.file.Files
 import java.nio.file.StandardCopyOption
 
 /**
- * Prosty „probe”: pobiera app-version.json z GitHuba, zapisuje w katalogu TMP
- * i wypisuje treść w konsoli. Na razie brak logiki aktualizacji.
+ * Prosty „probe”: pobiera app-version.json, zapisuje w katalogu TMP i wypisuje treść.
+ * Jeżeli URL nieosiągalny – ciche pominięcie (krótki log).
+ * Źródło URL:
+ *  1) config.properties → key: update.json.url
+ *  2) fallback: RAW GitHub (domyślny)
  */
 object UpdateProbe {
-    // Surowy link (RAW) do Twojego pliku z wersją
-    private const val UPDATE_JSON_URL =
+
+    private const val DEFAULT_URL =
         "https://raw.githubusercontent.com/RY84/ERP/main/app-version.json"
 
-    /** Pobiera app-version.json do katalogu tymczasowego i wypisuje jego treść. */
     fun run() {
+        val url = readUpdateUrlFromConfig() ?: DEFAULT_URL
         try {
-            val tmpFile = Paths.tmpDir.resolve("app-version.json").toPath()
-            val conn = URL(UPDATE_JSON_URL).openConnection().apply {
+            val tmp = java.nio.file.Paths.get(System.getProperty("java.io.tmpdir"))
+                .resolve("wsmr-app-version.json")
+            val conn = (URL(url).openConnection() as HttpURLConnection).apply {
                 connectTimeout = 5000
                 readTimeout = 5000
+                instanceFollowRedirects = true
+                requestMethod = "GET"
             }
-            conn.getInputStream().use { input ->
-                Files.createDirectories(tmpFile.parent)
-                Files.copy(input, tmpFile, StandardCopyOption.REPLACE_EXISTING)
+            val code = conn.responseCode
+            if (code != 200) {
+                System.err.println("ℹ️ UpdateProbe: HTTP $code — pomijam probe.")
+                return
             }
-            val text = Files.readString(tmpFile)
-            println("⬇️  Zapisano app-version.json: ${tmpFile.toAbsolutePath()}")
-            println(text)
-        } catch (e: Exception) {
-            System.err.println("⚠️ Nie udało się pobrać app-version.json: ${e.message}")
+            conn.inputStream.use { input ->
+                Files.copy(input, tmp, StandardCopyOption.REPLACE_EXISTING)
+            }
+            val text = Files.readString(tmp)
+            println("⬇️  UpdateProbe: zapisano app-version.json (${text.length} B) → ${tmp.toAbsolutePath()}")
+        } catch (_: Exception) {
+            // ciche pominięcie; jeden krótki log wystarczy
+            System.err.println("ℹ️ UpdateProbe: brak dostępu do URL — pomijam.")
+        }
+    }
+
+    private fun readUpdateUrlFromConfig(): String? {
+        return try {
+            val cfg = File("config.properties")
+            if (!cfg.exists()) return null
+            val props = java.util.Properties().apply { cfg.inputStream().use { load(it) } }
+            props.getProperty("update.json.url")?.takeIf { it.isNotBlank() }
+        } catch (_: Exception) {
+            null
         }
     }
 }

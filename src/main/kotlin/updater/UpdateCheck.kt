@@ -1,17 +1,22 @@
 package updater
 
-import utils.Paths
+import java.io.File
+import java.net.HttpURLConnection
 import java.net.URL
 import java.nio.file.Files
 import java.nio.file.StandardCopyOption
 
 /**
  * Sprawdza wersję z app-version.json i porównuje z wersją lokalną.
- * Na tym etapie TYLKO wypisuje decyzję (bez pobierania ZIPa).
+ * Źródło URL:
+ *  1) config.properties → key: update.json.url
+ *  2) fallback: RAW GitHub (domyślny)
+ *
+ * Na błędach sieci zwraca ciszę (krótki, pojedynczy log) i NIE przerywa aplikacji.
  */
 object UpdateCheck {
 
-    private const val UPDATE_JSON_URL =
+    private const val DEFAULT_URL =
         "https://raw.githubusercontent.com/RY84/ERP/main/app-version.json"
 
     data class Meta(
@@ -22,8 +27,10 @@ object UpdateCheck {
     )
 
     fun run(localVersion: String) {
-        val meta = fetchMeta() ?: run {
-            println("ℹ️ UpdateCheck: pomijam (brak metadanych).")
+        val url = readUpdateUrlFromConfig() ?: DEFAULT_URL
+        val meta = fetchMeta(url)
+        if (meta == null) {
+            println("ℹ️ UpdateCheck: brak metadanych (offline/URL niedostępny) — pomijam sprawdzanie.")
             return
         }
 
@@ -31,7 +38,7 @@ object UpdateCheck {
 
         when {
             isNewer(meta.minRequired, localVersion) -> {
-                println("⛔ Wersja lokalna jest niższa niż wymagane minimum → należałoby wykonać AUTO-UPDATE przed logowaniem.")
+                println("⛔ Wersja lokalna < wymagane minimum → należałoby wykonać AUTO-UPDATE przed logowaniem.")
                 println("   (download_url=${meta.downloadUrl}, sha256=${meta.sha256})")
             }
             isNewer(meta.latest, localVersion) -> {
@@ -44,15 +51,24 @@ object UpdateCheck {
         }
     }
 
-    private fun fetchMeta(): Meta? {
+    private fun fetchMeta(updateJsonUrl: String): Meta? {
         return try {
-            val tmp = Paths.tmpDir.resolve("app-version.json").toPath()
-            val conn = URL(UPDATE_JSON_URL).openConnection().apply {
+            val tmp = java.nio.file.Paths.get(System.getProperty("java.io.tmpdir"))
+                .resolve("wsmr-app-version.json")
+            val conn = (URL(updateJsonUrl).openConnection() as HttpURLConnection).apply {
                 connectTimeout = 5000
                 readTimeout = 5000
+                instanceFollowRedirects = true
+                requestMethod = "GET"
             }
-            conn.getInputStream().use { input ->
-                Files.createDirectories(tmp.parent)
+            val code = conn.responseCode
+            if (code != 200) {
+                // cicho i kulturalnie:
+                System.err.println("ℹ️ UpdateCheck: serwer zwrócił HTTP $code — pomijam.")
+                return null
+            }
+
+            conn.inputStream.use { input ->
                 Files.copy(input, tmp, StandardCopyOption.REPLACE_EXISTING)
             }
             val txt = Files.readString(tmp)
@@ -67,8 +83,8 @@ object UpdateCheck {
             val url = findString("download_url")
             val sha = findString("sha256")
             Meta(latest, minReq, url, sha)
-        } catch (e: Exception) {
-            System.err.println("⚠️ UpdateCheck.fetchMeta błąd: ${e.message}")
+        } catch (_: Exception) {
+            // bez stack trace – po prostu pomijamy
             null
         }
     }
@@ -84,5 +100,17 @@ object UpdateCheck {
             if (x != y) return x > y
         }
         return false
+    }
+
+    /** próba odczytu `update.json.url` z config.properties obok pliku wykonywalnego */
+    private fun readUpdateUrlFromConfig(): String? {
+        return try {
+            val cfg = File("config.properties")
+            if (!cfg.exists()) return null
+            val props = java.util.Properties().apply { cfg.inputStream().use { load(it) } }
+            props.getProperty("update.json.url")?.takeIf { it.isNotBlank() }
+        } catch (_: Exception) {
+            null
+        }
     }
 }

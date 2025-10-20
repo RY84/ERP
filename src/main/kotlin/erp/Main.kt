@@ -1,20 +1,15 @@
 package erp
 
 import javax.swing.SwingUtilities
-import javax.swing.UIManager
 import ui.LoginFrame
 import db.Database
-import ui.Theme
 import utils.Paths
 import updater.UpdateProbe
 import updater.UpdateCheck
 import updater.DownloadAndVerify
 import updater.Install
-// import updater.Launcher   // tymczasowo nie restartujemy
 import java.nio.file.Files
 import java.nio.file.Path
-
-object Version { const val current = "1.0.1" }
 
 fun main() {
     println("🚀 Startuję WSMR, wersja ${Version.current}")
@@ -26,11 +21,19 @@ fun main() {
     // Preflight w tle – bez twardych stopów i bez restartu
     Thread {
         try {
-            try { Database.ensureSchemaAndSeed(); println("✅ Baza gotowa (schema + seed).") }
-            catch (e: Exception) { System.err.println("❌ Błąd inicjalizacji bazy: ${e.message}"); e.printStackTrace() }
+            try {
+                Database.ensureSchemaAndSeed()
+                println("✅ Baza gotowa (schema + seed).")
+            } catch (e: Exception) {
+                System.err.println("❌ Błąd inicjalizacji bazy: ${e.message}")
+                e.printStackTrace()
+            }
 
-            try { Paths.ensureDirs() }
-            catch (e: Exception) { System.err.println("⚠️ Nie udało się utworzyć katalogów: ${e.message}") }
+            try {
+                Paths.ensureDirs()
+            } catch (e: Exception) {
+                System.err.println("⚠️ Nie udało się utworzyć katalogów: ${e.message}")
+            }
 
             UpdateProbe.run()
             UpdateCheck.run(Version.current)
@@ -45,7 +48,10 @@ fun main() {
                 // drobna pauza dla płynności wrażenia
                 javax.swing.Timer(250) {
                     frame.showLogin()
-                }.apply { isRepeats = false; start() }
+                }.apply {
+                    isRepeats = false
+                    start()
+                }
             }
         }
     }.start()
@@ -54,7 +60,8 @@ fun main() {
 /* poniżej helpers – bez zmian */
 private fun compareVersions(a: String, b: String): Int {
     fun parse(v: String) = v.split(".").map { it.toIntOrNull() ?: 0 }
-    val aa = parse(a); val bb = parse(b)
+    val aa = parse(a)
+    val bb = parse(b)
     val max = maxOf(aa.size, bb.size)
     for (i in 0 until max) {
         val x = if (i < aa.size) aa[i] else 0
@@ -63,10 +70,13 @@ private fun compareVersions(a: String, b: String): Int {
     }
     return 0
 }
+
 private fun readJsonField(path: Path, key: String): String? {
     return try {
         val txt = Files.readString(path)
         val re = Regex("\"$key\"\\s*:\\s*\"([^\"]+)\"")
         re.find(txt)?.groupValues?.get(1)
-    } catch (_: Exception) { null }
+    } catch (_: Exception) {
+        null
+    }
 }

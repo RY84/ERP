@@ -1,13 +1,10 @@
 package ui
 
 import java.awt.*
-import javax.imageio.ImageIO
 import javax.swing.*
-import javax.swing.border.EmptyBorder
 
 class MainWindow(private val username: String) : JFrame("Wszystko sam muszę robić...") {
 
-    // kontener na środek – tutaj podmieniamy widoki (HomePanel, UsersPanel, ...)
     private val centerHost = JPanel(BorderLayout())
 
     init {
@@ -18,7 +15,6 @@ class MainWindow(private val username: String) : JFrame("Wszystko sam muszę rob
         val root = JPanel(BorderLayout())
         contentPane = root
 
-        // ===== GÓRNY PASEK =====
         val topBar = TopBar(
             username = username,
             onHome = { showHome() },
@@ -32,12 +28,10 @@ class MainWindow(private val username: String) : JFrame("Wszystko sam muszę rob
         root.add(centerHost, BorderLayout.CENTER)
 
         showHome()
-
         pack()
         isVisible = true
     }
 
-    /** Wstawia HomePanel do części centralnej. */
     private fun showHome() {
         centerHost.removeAll()
         centerHost.add(HomePanel(), BorderLayout.CENTER)
@@ -45,7 +39,6 @@ class MainWindow(private val username: String) : JFrame("Wszystko sam muszę rob
         centerHost.repaint()
     }
 
-    /** Lista użytkowników. */
     private fun showUsers() {
         centerHost.removeAll()
         centerHost.add(UsersPanel(), BorderLayout.CENTER)
@@ -53,9 +46,9 @@ class MainWindow(private val username: String) : JFrame("Wszystko sam muszę rob
         centerHost.repaint()
     }
 
-    /** Wylogowanie — wracamy do LoginFrame z prefillem aktualnego użytkownika (sesyjnie). */
+    /** Wylogowanie — wracamy do LoginFrame bez preloadera. */
     private fun onLogout() {
         dispose()
-        LoginFrame(prefillUsername = username).isVisible = true
+        LoginFrame(prefillUsername = username, showPreloader = false).isVisible = true
     }
 }

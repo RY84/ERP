@@ -1,17 +1,36 @@
 package updater
 
+import utils.Paths
 import java.io.File
 
 /**
  * Uruchamia zainstalowany JAR w osobnym procesie i kończy bieżący proces.
- * - używa tej samej Javy co obecny proces
- * - jako working dir ustawia bieżący user.dir (żeby działał config.properties)
+ * – używa tej samej Javy co obecny proces
+ * – jako working dir ustawia bieżący user.dir (żeby działał config.properties)
  */
 object Launcher {
 
+    /** Wyszukuje główny JAR klienta w katalogu instalacyjnym. */
+    private fun findMainJar(): File? {
+        val appDir = Paths.appDir
+        if (!appDir.exists() || !appDir.isDirectory) return null
+
+        val jars = appDir.listFiles { f -> f.isFile && f.name.endsWith(".jar", ignoreCase = true) }
+            ?.sortedBy { it.name.lowercase() }
+            ?: emptyList()
+
+        // preferuj cienie (shaded) w stylu ERP-*-all.jar
+        val preferred = jars.firstOrNull { it.name.matches(Regex("(?i)erp-.*-all\\.jar")) }
+        return preferred ?: jars.firstOrNull()
+    }
+
+    /**
+     * Próbuje uruchomić zainstalowany JAR, a jeśli się uda – kończy bieżący proces.
+     * Zwraca true, gdy wystartowano nowy proces.
+     */
     fun launchInstalledAndExitIfFound(): Boolean {
-        val jar = Install.findMainJar() ?: run {
-            println("ℹ️ Launcher: brak zainstalowanego JAR-a do uruchomienia.")
+        val jar = findMainJar() ?: run {
+            println("⚠️  Launcher: brak zainstalowanego JAR-a do uruchomienia.")
             return false
         }
 
@@ -21,7 +40,7 @@ object Launcher {
         val cmd = listOf(
             javaBin,
             "-jar",
-            jar.toAbsolutePath().toString()
+            jar.absolutePath        // ← poprawka (File → absolutePath)
         )
 
         println("🚗 Uruchamiam nową instancję: $cmd")
@@ -30,16 +49,15 @@ object Launcher {
         return try {
             ProcessBuilder(cmd)
                 .directory(workDir)
-                .inheritIO()      // przekazuje IO do konsoli
+                .inheritIO()         // przejmij STDOUT/STDERR do bieżącej konsoli
                 .start()
 
             println("✅ Nowy proces wystartował. Kończę bieżący proces (System.exit(0)).")
-            // krótka pauza, by nowy proces zdążył „złapać” terminal/okno
-            try { Thread.sleep(250) } catch (_: InterruptedException) {}
             System.exit(0)
-            true // tu i tak nie dojdziemy
+            true
         } catch (e: Exception) {
-            System.err.println("❌ Launcher: nie udało się uruchomić nowej instancji: ${e.message}")
+            System.err.println("❌ Błąd uruchamiania nowej instancji: ${e.message}")
+            e.printStackTrace()
             false
         }
     }

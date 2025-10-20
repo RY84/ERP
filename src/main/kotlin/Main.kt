@@ -10,60 +10,63 @@ import updater.UpdateProbe
 import updater.UpdateCheck
 import updater.DownloadAndVerify
 import updater.Install
-import updater.Launcher
+// import updater.Launcher   // tymczasowo nie restartujemy
+import java.nio.file.Files
+import java.nio.file.Path
 
-object Version {
-    // Aktualna wersja klienta — MUSI odpowiadać wersji zbudowanego JAR-a
-    const val current = "1.0.1"
-}
+object Version { const val current = "1.0.1" }
 
 fun main() {
     println("🚀 Startuję WSMR, wersja ${Version.current}")
 
-    // 1) Inicjalizacja bazy danych (schema + seed)
-    try {
-        Database.ensureSchemaAndSeed()
-        println("✅ Baza gotowa (schema + seed).")
-    } catch (e: Exception) {
-        System.err.println("❌ Błąd inicjalizacji bazy: ${e.message}")
-        e.printStackTrace()
-    }
+    // Start UI (preloader)
+    val frame = LoginFrame()
+    frame.isVisible = true
 
-    // 2) Upewnij się, że katalogi konfiguracyjne istnieją
-    try {
-        Paths.ensureDirs()
-    } catch (e: Exception) {
-        System.err.println("⚠️ Nie udało się utworzyć katalogów: ${e.message}")
-        e.printStackTrace()
-    }
-
-    // 3) Pobierz metadane aktualizacji (app-version.json)
-    UpdateProbe.run()
-
-    // 4) Porównaj wersję lokalną z najnowszą
-    UpdateCheck.run(Version.current)
-
-    // 5) Pobierz i zweryfikuj paczkę ZIP (jeśli jest nowa wersja)
-    val downloadedZip = DownloadAndVerify.run()
-
-    if (downloadedZip != null) {
-        // 6) Zainstaluj pobraną wersję
-        Install.installFrom(downloadedZip)
-
-        // 7) Uruchom nową wersję i zakończ bieżący proces
-        Launcher.launchInstalledAndExitIfFound()
-        return
-    }
-
-    // 8) Jeśli nie było aktualizacji, uruchom UI logowania
-    SwingUtilities.invokeLater {
+    // Preflight w tle – bez twardych stopów i bez restartu
+    Thread {
         try {
-            UIManager.setLookAndFeel(UIManager.getSystemLookAndFeelClassName())
-        } catch (_: Exception) {
-            // pomijamy błędy L&F
-        }
+            try { Database.ensureSchemaAndSeed(); println("✅ Baza gotowa (schema + seed).") }
+            catch (e: Exception) { System.err.println("❌ Błąd inicjalizacji bazy: ${e.message}"); e.printStackTrace() }
 
-        Theme.applyGlobalUI()
-        LoginFrame().isVisible = true
+            try { Paths.ensureDirs() }
+            catch (e: Exception) { System.err.println("⚠️ Nie udało się utworzyć katalogów: ${e.message}") }
+
+            UpdateProbe.run()
+            UpdateCheck.run(Version.current)
+            val zip = DownloadAndVerify.run()
+            if (zip != null) {
+                Install.installFrom(zip)
+                // 🔕 Restart wyłączony – chcemy ZAWSZE przejść do logowania.
+                // if (Launcher.launchInstalledAndExitIfFound()) return@Thread
+            }
+        } finally {
+            SwingUtilities.invokeLater {
+                // drobna pauza dla płynności wrażenia
+                javax.swing.Timer(250) {
+                    frame.showLogin()
+                }.apply { isRepeats = false; start() }
+            }
+        }
+    }.start()
+}
+
+/* poniżej helpers – bez zmian */
+private fun compareVersions(a: String, b: String): Int {
+    fun parse(v: String) = v.split(".").map { it.toIntOrNull() ?: 0 }
+    val aa = parse(a); val bb = parse(b)
+    val max = maxOf(aa.size, bb.size)
+    for (i in 0 until max) {
+        val x = if (i < aa.size) aa[i] else 0
+        val y = if (i < bb.size) bb[i] else 0
+        if (x != y) return x - y
     }
+    return 0
+}
+private fun readJsonField(path: Path, key: String): String? {
+    return try {
+        val txt = Files.readString(path)
+        val re = Regex("\"$key\"\\s*:\\s*\"([^\"]+)\"")
+        re.find(txt)?.groupValues?.get(1)
+    } catch (_: Exception) { null }
 }

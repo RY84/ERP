@@ -1,0 +1,17 @@
+# Kandydaci do usunięcia / przeniesienia (bez zmian na razie)
+# — sprawdzimy i zatwierdzimy każdy punkt.
+
+# 1) Narzędzia dev / nieużywane:
+src/main/kotlin/ui/GlowBar.kt            # prawdopodobnie nieużywany (LoginFrame ma KnightRiderBar)
+src/main/kotlin/updater/UpdateProbe.kt   # narzędzie developerskie (można przenieść do devtools/)
+
+# 2) Artefakty w repo root:
+app-version.json                         # przykładowy meta-plik; produkcyjnie trafia do tmp/
+client-1.0.0.zip                         # binarka — do wydzielenia poza repo (releases/artefakty)
+client-1.0.1-b.zip                       # j.w.
+client-1.0.1.zip                         # j.w.
+_inventory_files.txt                     # plik pomocniczy — dodać do .gitignore i usunąć z repo
+
+# 3) Pliki IDE (lokalne sesje):
+.idea/workspace.xml                      # lokalny stan IDE — zwykle ignorujemy
+✔️  Potwierdzone: GlowBar.kt nieużywany – można przenieść do devtools/ lub usunąć.

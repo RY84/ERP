@@ -49,3 +49,8 @@ build/distributions/
 
 # === VS Code (jeśli używasz) ===
 .vscode/
+
+# Lokalna konfiguracja / build / IDE
+_inventory_files.txt
+.idea/workspace.xml
+

@@ -4,6 +4,6 @@
   "changelog": [
     "Druga wersja klienta – naprawiono restart po aktualizacji."
   ],
-  "download_url": "https://github.com/RY84/ERP/releases/download/v1.0.1/client-1.0.1.zip",
-  "sha256": "ff71cd6cf5576e7cbf42449ba61aedfca7ab0aa318cc466f7230eb6de4f3dddd"
+  "download_url": "https://github.com/RY84/ERP/releases/download/v1.0.1/client-1.0.1-b.zip",
+  "sha256": "f2823d3addadeb4e0dd3724172a00af7818fde072a3c711ce4ec369aeeeecab5"
 }
